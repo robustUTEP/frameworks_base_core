@@ -84,11 +84,9 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-<<<<<<< HEAD
 import java.io.BufferedReader;
 import java.io.FileReader;
-=======
->>>>>>> 043433fad55a064e5a0a5fe0e6edc4ba1702ede1
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
