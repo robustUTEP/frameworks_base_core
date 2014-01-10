@@ -84,6 +84,11 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+<<<<<<< HEAD
+import java.io.BufferedReader;
+import java.io.FileReader;
+=======
+>>>>>>> 043433fad55a064e5a0a5fe0e6edc4ba1702ede1
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -647,9 +652,9 @@ import android.os.Environment;
  * or finished.
  */
 public class Activity extends ContextThemeWrapper
-        implements LayoutInflater.Factory2,
-        Window.Callback, KeyEvent.Callback,
-        OnCreateContextMenuListener, ComponentCallbacks2 {
+    implements LayoutInflater.Factory2,
+	       Window.Callback, KeyEvent.Callback,
+	       OnCreateContextMenuListener, ComponentCallbacks2 {
     private static final String TAG = "Activity";
     private static final boolean DEBUG_LIFECYCLE = false;
 
@@ -673,8 +678,9 @@ public class Activity extends ContextThemeWrapper
         Bundle mArgs;
     }
     private SparseArray<ManagedDialog> mManagedDialogs;
-
+    
     // set by the thread after the constructor and before onCreate(Bundle savedInstanceState) is called.
+    private boolean isLoggingEnabled; // Robust Logging.
     private Instrumentation mInstrumentation;
     private IBinder mToken;
     private int mIdent;
@@ -725,11 +731,11 @@ public class Activity extends ContextThemeWrapper
 
     final FragmentManagerImpl mFragments = new FragmentManagerImpl();
     final FragmentContainer mContainer = new FragmentContainer() {
-        @Override
-        public View findViewById(int id) {
-            return Activity.this.findViewById(id);
-        }
-    };
+	    @Override
+		public View findViewById(int id) {
+		return Activity.this.findViewById(id);
+	    }
+	};
     
     HashMap<String, LoaderManagerImpl> mAllLoaderManagers;
     LoaderManagerImpl mLoaderManager;
@@ -760,7 +766,7 @@ public class Activity extends ContextThemeWrapper
     protected static final int[] FOCUSED_STATE_SET = {com.android.internal.R.attr.state_focused};
 
     @SuppressWarnings("unused")
-    private final Object mInstanceTracker = StrictMode.trackActivity(this);
+	private final Object mInstanceTracker = StrictMode.trackActivity(this);
 
     private Thread mUiThread;
     final Handler mHandler = new Handler();
@@ -898,11 +904,12 @@ public class Activity extends ContextThemeWrapper
         if (savedInstanceState != null) {
             Parcelable p = savedInstanceState.getParcelable(FRAGMENTS_TAG);
             mFragments.restoreAllState(p, mLastNonConfigurationInstances != null
-                    ? mLastNonConfigurationInstances.fragments : null);
+				       ? mLastNonConfigurationInstances.fragments : null);
         }
         mFragments.dispatchCreate();
         getApplication().dispatchActivityCreated(this, savedInstanceState);
         mCalled = true;
+	isLoggingEnabled = shouldLog();
     }
 
     /**
@@ -1022,7 +1029,7 @@ public class Activity extends ContextThemeWrapper
     /**
      * Called after {@link #onCreate} &mdash; or after {@link #onRestart} when  
      * the activity had been stopped, but is now again being displayed to the 
-	 * user.  It will be followed by {@link #onResume}.
+     * user.  It will be followed by {@link #onResume}.
      *
      * <p><em>Derived classes must call through to the super class's
      * implementation of this method.  If they do not, an exception will be
@@ -1099,8 +1106,9 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         
         //Robust code
-	    //Runtime.getRuntime().setLogActivityStatus(1);
-	    //Runtime.getRuntime().gc();
+	//Runtime.getRuntime().setLogActivityStatus(1);
+	//Runtime.getRuntime().gc();
+	if (isLoggingEnabled)
 	    logAppStatus(1);
     }
 
@@ -1294,7 +1302,8 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         
         //Robust Logging
-	    //Runtime.getRuntime().setLogActivityStatus(0);
+	//Runtime.getRuntime().setLogActivityStatus(0);
+	if (isLoggingEnabled)
 	    logAppStatus(0);
     }
 
@@ -5370,4 +5379,29 @@ public class Activity extends ContextThemeWrapper
 	        Log.e(TAG, "Robust logging ", e);
 	    }
     }
+    
+    /**
+     * Robust Logging
+     * Checks if logging is enabled
+     * @return: true if enabled.
+     */
+    private boolean shouldLog()
+    {
+    	String line = "";
+	try {
+	    File sdcard = Environment.getExternalStorageDirectory();
+	    File file = new File(sdcard,"/robust/GCPolicy.txt");
+	    BufferedReader br = new BufferedReader(new FileReader(file));
+	    line = br.readLine();
+	    br.close();
+	} catch (Exception e) {
+	    Log.e(TAG, "", e);
+	}
+	int p = Integer.parseInt(line);
+	if(p<0)
+	    return false;
+	else
+	    return true;
+    }
+    
 }
