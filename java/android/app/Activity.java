@@ -5386,17 +5386,19 @@ public class Activity extends ContextThemeWrapper
     private boolean shouldLog()
     {
     	String line = "";
+	int p = 0;
 	try {
-	    File sdcard = Environment.getExternalStorageDirectory();
-	    File file = new File(sdcard,"/robust/GCPolicy.txt");
-	    BufferedReader br = new BufferedReader(new FileReader(file));
-	    line = br.readLine();
-	    br.close();
+	    File file = new File("/sdcard/robust/GCPolicy.txt");
+	    if (file.exists()) {
+		BufferedReader br = new BufferedReader(new FileReader(file));
+		line = br.readLine();
+		br.close();
+		p = Integer.parseInt(line);
+	    }
 	} catch (Exception e) {
-	    Log.e(TAG, "", e);
+	    Log.e(TAG, "shouldLog() Error", e);
 	}
-	int p = Integer.parseInt(line);
-	if(p<0)
+	if(p <= 0)
 	    return false;
 	else
 	    return true;
