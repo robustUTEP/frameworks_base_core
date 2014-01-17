@@ -5397,6 +5397,7 @@ public class Activity extends ContextThemeWrapper
 	    }
 	} catch (Exception e) {
 	    Log.e(TAG, "shouldLog() Error", e);
+	    return false;
 	}
 	if(p <= 0)
 	    return false;
