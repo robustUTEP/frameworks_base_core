@@ -5380,6 +5380,16 @@ public class Activity extends ContextThemeWrapper
     
     /**
      * Robust Logging
+     * Writes header to log
+     * Contains device ID and policy 
+     */
+     private void headerEntry()
+     {
+     	
+     }
+    
+    /**
+     * Robust Logging
      * Checks if logging is enabled
      * @return: true if enabled.
      */
