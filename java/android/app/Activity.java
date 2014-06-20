@@ -16,6 +16,8 @@
 
 package android.app;
 
+import android.util.ArrayMap;
+import android.util.SuperNotCalledException;
 import com.android.internal.app.ActionBarImpl;
 import com.android.internal.policy.PolicyManager;
 
@@ -56,6 +58,7 @@ import android.text.method.TextKeyListener;
 import android.util.AttributeSet;
 import android.util.EventLog;
 import android.util.Log;
+import android.util.PrintWriterPrinter;
 import android.util.Slog;
 import android.util.SparseArray;
 import android.view.ActionMode;
@@ -83,16 +86,6 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
-
-import java.io.BufferedReader;
-import java.io.FileReader;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-
-import android.os.Environment;
 
 /**
  * An activity is a single, focused thing that the user can do.  Almost all
@@ -650,9 +643,9 @@ import android.os.Environment;
  * or finished.
  */
 public class Activity extends ContextThemeWrapper
-    implements LayoutInflater.Factory2,
-	       Window.Callback, KeyEvent.Callback,
-	       OnCreateContextMenuListener, ComponentCallbacks2 {
+        implements LayoutInflater.Factory2,
+        Window.Callback, KeyEvent.Callback,
+        OnCreateContextMenuListener, ComponentCallbacks2 {
     private static final String TAG = "Activity";
     private static final boolean DEBUG_LIFECYCLE = false;
 
@@ -676,9 +669,8 @@ public class Activity extends ContextThemeWrapper
         Bundle mArgs;
     }
     private SparseArray<ManagedDialog> mManagedDialogs;
-    
+
     // set by the thread after the constructor and before onCreate(Bundle savedInstanceState) is called.
-    private boolean isLoggingEnabled; // Robust Logging.
     private Instrumentation mInstrumentation;
     private IBinder mToken;
     private int mIdent;
@@ -697,6 +689,7 @@ public class Activity extends ContextThemeWrapper
     boolean mFinished;
     boolean mStartedActivity;
     private boolean mDestroyed;
+    private boolean mDoReportFullyDrawn = true;
     /** true if the activity is going through a transient pause */
     /*package*/ boolean mTemporaryPause = false;
     /** true if the activity is being destroyed in order to recreate it with a new configuration */
@@ -710,7 +703,7 @@ public class Activity extends ContextThemeWrapper
         Object activity;
         HashMap<String, Object> children;
         ArrayList<Fragment> fragments;
-        HashMap<String, LoaderManagerImpl> loaders;
+        ArrayMap<String, LoaderManagerImpl> loaders;
     }
     /* package */ NonConfigurationInstances mLastNonConfigurationInstances;
     
@@ -729,13 +722,13 @@ public class Activity extends ContextThemeWrapper
 
     final FragmentManagerImpl mFragments = new FragmentManagerImpl();
     final FragmentContainer mContainer = new FragmentContainer() {
-	    @Override
-		public View findViewById(int id) {
-		return Activity.this.findViewById(id);
-	    }
-	};
+        @Override
+        public View findViewById(int id) {
+            return Activity.this.findViewById(id);
+        }
+    };
     
-    HashMap<String, LoaderManagerImpl> mAllLoaderManagers;
+    ArrayMap<String, LoaderManagerImpl> mAllLoaderManagers;
     LoaderManagerImpl mLoaderManager;
     
     private static final class ManagedCursor {
@@ -755,6 +748,8 @@ public class Activity extends ContextThemeWrapper
     // protected by synchronized (this) 
     int mResultCode = RESULT_CANCELED;
     Intent mResultData = null;
+    private TranslucentConversionListener mTranslucentCallback;
+    private boolean mChangeCanvasToTranslucent;
 
     private boolean mTitleReady = false;
 
@@ -764,7 +759,7 @@ public class Activity extends ContextThemeWrapper
     protected static final int[] FOCUSED_STATE_SET = {com.android.internal.R.attr.state_focused};
 
     @SuppressWarnings("unused")
-	private final Object mInstanceTracker = StrictMode.trackActivity(this);
+    private final Object mInstanceTracker = StrictMode.trackActivity(this);
 
     private Thread mUiThread;
     final Handler mHandler = new Handler();
@@ -828,13 +823,13 @@ public class Activity extends ContextThemeWrapper
             return mLoaderManager;
         }
         mCheckedForLoaderManager = true;
-        mLoaderManager = getLoaderManager(null, mLoadersStarted, true);
+        mLoaderManager = getLoaderManager("(root)", mLoadersStarted, true);
         return mLoaderManager;
     }
     
     LoaderManagerImpl getLoaderManager(String who, boolean started, boolean create) {
         if (mAllLoaderManagers == null) {
-            mAllLoaderManagers = new HashMap<String, LoaderManagerImpl>();
+            mAllLoaderManagers = new ArrayMap<String, LoaderManagerImpl>();
         }
         LoaderManagerImpl lm = mAllLoaderManagers.get(who);
         if (lm == null) {
@@ -902,12 +897,11 @@ public class Activity extends ContextThemeWrapper
         if (savedInstanceState != null) {
             Parcelable p = savedInstanceState.getParcelable(FRAGMENTS_TAG);
             mFragments.restoreAllState(p, mLastNonConfigurationInstances != null
-				       ? mLastNonConfigurationInstances.fragments : null);
+                    ? mLastNonConfigurationInstances.fragments : null);
         }
         mFragments.dispatchCreate();
         getApplication().dispatchActivityCreated(this, savedInstanceState);
         mCalled = true;
-	isLoggingEnabled = shouldLog();
     }
 
     /**
@@ -1027,7 +1021,7 @@ public class Activity extends ContextThemeWrapper
     /**
      * Called after {@link #onCreate} &mdash; or after {@link #onRestart} when  
      * the activity had been stopped, but is now again being displayed to the 
-     * user.  It will be followed by {@link #onResume}.
+	 * user.  It will be followed by {@link #onResume}.
      *
      * <p><em>Derived classes must call through to the super class's
      * implementation of this method.  If they do not, an exception will be
@@ -1046,7 +1040,7 @@ public class Activity extends ContextThemeWrapper
             if (mLoaderManager != null) {
                 mLoaderManager.doStart();
             } else if (!mCheckedForLoaderManager) {
-                mLoaderManager = getLoaderManager(null, mLoadersStarted, false);
+                mLoaderManager = getLoaderManager("(root)", mLoadersStarted, false);
             }
             mCheckedForLoaderManager = true;
         }
@@ -1102,12 +1096,6 @@ public class Activity extends ContextThemeWrapper
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onResume " + this);
         getApplication().dispatchActivityResumed(this);
         mCalled = true;
-        
-        //Robust code
-	//Runtime.getRuntime().setLogActivityStatus(1);
-	//Runtime.getRuntime().gc();
-	if (isLoggingEnabled)
-	    logAppStatus(1);
     }
 
     /**
@@ -1298,11 +1286,6 @@ public class Activity extends ContextThemeWrapper
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onPause " + this);
         getApplication().dispatchActivityPaused(this);
         mCalled = true;
-        
-        //Robust Logging
-	//Runtime.getRuntime().setLogActivityStatus(0);
-	if (isLoggingEnabled)
-	    logAppStatus(0);
     }
 
     /**
@@ -1404,6 +1387,7 @@ public class Activity extends ContextThemeWrapper
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onStop " + this);
         if (mActionBar != null) mActionBar.setShowHideAnimationEnabled(false);
         getApplication().dispatchActivityStopped(this);
+        mTranslucentCallback = null;
         mCalled = true;
     }
 
@@ -1469,6 +1453,29 @@ public class Activity extends ContextThemeWrapper
         }
 
         getApplication().dispatchActivityDestroyed(this);
+    }
+
+    /**
+     * Report to the system that your app is now fully drawn, purely for diagnostic
+     * purposes (calling it does not impact the visible behavior of the activity).
+     * This is only used to help instrument application launch times, so that the
+     * app can report when it is fully in a usable state; without this, the only thing
+     * the system itself can determine is the point at which the activity's window
+     * is <em>first</em> drawn and displayed.  To participate in app launch time
+     * measurement, you should always call this method after first launch (when
+     * {@link #onCreate(android.os.Bundle)} is called), at the point where you have
+     * entirely drawn your UI and populated with all of the significant data.  You
+     * can safely call this method any time after first launch as well, in which case
+     * it will simply be ignored.
+     */
+    public void reportFullyDrawn() {
+        if (mDoReportFullyDrawn) {
+            mDoReportFullyDrawn = false;
+            try {
+                ActivityManagerNative.getDefault().reportActivityFullyDrawn(mToken);
+            } catch (RemoteException e) {
+            }
+        }
     }
 
     /**
@@ -1647,17 +1654,18 @@ public class Activity extends ContextThemeWrapper
         if (mAllLoaderManagers != null) {
             // prune out any loader managers that were already stopped and so
             // have nothing useful to retain.
-            LoaderManagerImpl loaders[] = new LoaderManagerImpl[mAllLoaderManagers.size()];
-            mAllLoaderManagers.values().toArray(loaders);
-            if (loaders != null) {
-                for (int i=0; i<loaders.length; i++) {
-                    LoaderManagerImpl lm = loaders[i];
-                    if (lm.mRetaining) {
-                        retainLoaders = true;
-                    } else {
-                        lm.doDestroy();
-                        mAllLoaderManagers.remove(lm.mWho);
-                    }
+            final int N = mAllLoaderManagers.size();
+            LoaderManagerImpl loaders[] = new LoaderManagerImpl[N];
+            for (int i=N-1; i>=0; i--) {
+                loaders[i] = mAllLoaderManagers.valueAt(i);
+            }
+            for (int i=0; i<N; i++) {
+                LoaderManagerImpl lm = loaders[i];
+                if (lm.mRetaining) {
+                    retainLoaders = true;
+                } else {
+                    lm.doDestroy();
+                    mAllLoaderManagers.remove(lm.mWho);
                 }
             }
         }
@@ -1900,9 +1908,12 @@ public class Activity extends ContextThemeWrapper
         if (isChild() || !window.hasFeature(Window.FEATURE_ACTION_BAR) || mActionBar != null) {
             return;
         }
-        
+
         mActionBar = new ActionBarImpl(this);
         mActionBar.setDefaultDisplayHomeAsUpEnabled(mEnableDefaultActionBarUp);
+
+        mWindow.setDefaultIcon(mActivityInfo.getIconResource());
+        mWindow.setDefaultLogo(mActivityInfo.getLogoResource());
     }
     
     /**
@@ -3429,6 +3440,12 @@ public class Activity extends ContextThemeWrapper
                 // activity is finished, no matter what happens to it.
                 mStartedActivity = true;
             }
+
+            final View decor = mWindow != null ? mWindow.peekDecorView() : null;
+            if (decor != null) {
+                decor.cancelPendingInputEvents();
+            }
+            // TODO Consider clearing/flushing other event sources and events for child windows.
         } else {
             if (options != null) {
                 mParent.startActivityFromChild(this, intent, requestCode, options);
@@ -4830,36 +4847,23 @@ public class Activity extends ContextThemeWrapper
                 writer.println(mChangingConfigurations);
         writer.print(innerPrefix); writer.print("mCurrentConfig=");
                 writer.println(mCurrentConfig);
+
         if (mLoaderManager != null) {
             writer.print(prefix); writer.print("Loader Manager ");
                     writer.print(Integer.toHexString(System.identityHashCode(mLoaderManager)));
                     writer.println(":");
             mLoaderManager.dump(prefix + "  ", fd, writer, args);
         }
-        mFragments.dump(prefix, fd, writer, args);
-        writer.print(prefix); writer.println("View Hierarchy:");
-        dumpViewHierarchy(prefix + "  ", writer, getWindow().getDecorView());
-    }
 
-    private void dumpViewHierarchy(String prefix, PrintWriter writer, View view) {
-        writer.print(prefix);
-        if (view == null) {
-            writer.println("null");
-            return;
+        mFragments.dump(prefix, fd, writer, args);
+
+        if (getWindow() != null &&
+                getWindow().peekDecorView() != null &&
+                getWindow().peekDecorView().getViewRootImpl() != null) {
+            getWindow().peekDecorView().getViewRootImpl().dump(prefix, fd, writer, args);
         }
-        writer.println(view.toString());
-        if (!(view instanceof ViewGroup)) {
-            return;
-        }
-        ViewGroup grp = (ViewGroup)view;
-        final int N = grp.getChildCount();
-        if (N <= 0) {
-            return;
-        }
-        prefix = prefix + "  ";
-        for (int i=0; i<N; i++) {
-            dumpViewHierarchy(prefix, writer, grp.getChildAt(i));
-        }
+
+        mHandler.getLooper().dump(new PrintWriterPrinter(writer), prefix);
     }
 
     /**
@@ -4878,6 +4882,74 @@ public class Activity extends ContextThemeWrapper
             return ActivityManagerNative.getDefault().isImmersive(mToken);
         } catch (RemoteException e) {
             return false;
+        }
+    }
+
+    /**
+     * Convert a translucent themed Activity {@link android.R.attr#windowIsTranslucent} to a
+     * fullscreen opaque Activity.
+     * <p>
+     * Call this whenever the background of a translucent Activity has changed to become opaque.
+     * Doing so will allow the {@link android.view.Surface} of the Activity behind to be released.
+     * <p>
+     * This call has no effect on non-translucent activities or on activities with the
+     * {@link android.R.attr#windowIsFloating} attribute.
+     *
+     * @see #convertToTranslucent(TranslucentConversionListener)
+     * @see TranslucentConversionListener
+     *
+     * @hide
+     */
+    public void convertFromTranslucent() {
+        try {
+            mTranslucentCallback = null;
+            if (ActivityManagerNative.getDefault().convertFromTranslucent(mToken)) {
+                WindowManagerGlobal.getInstance().changeCanvasOpacity(mToken, true);
+            }
+        } catch (RemoteException e) {
+            // pass
+        }
+    }
+
+    /**
+     * Convert a translucent themed Activity {@link android.R.attr#windowIsTranslucent} back from
+     * opaque to translucent following a call to {@link #convertFromTranslucent()}.
+     * <p>
+     * Calling this allows the Activity behind this one to be seen again. Once all such Activities
+     * have been redrawn {@link TranslucentConversionListener#onTranslucentConversionComplete} will
+     * be called indicating that it is safe to make this activity translucent again. Until
+     * {@link TranslucentConversionListener#onTranslucentConversionComplete} is called the image
+     * behind the frontmost Activity will be indeterminate.
+     * <p>
+     * This call has no effect on non-translucent activities or on activities with the
+     * {@link android.R.attr#windowIsFloating} attribute.
+     *
+     * @param callback the method to call when all visible Activities behind this one have been
+     * drawn and it is safe to make this Activity translucent again.
+     *
+     * @see #convertFromTranslucent()
+     * @see TranslucentConversionListener
+     *
+     * @hide
+     */
+    public void convertToTranslucent(TranslucentConversionListener callback) {
+        try {
+            mTranslucentCallback = callback;
+            mChangeCanvasToTranslucent =
+                    ActivityManagerNative.getDefault().convertToTranslucent(mToken);
+        } catch (RemoteException e) {
+            // pass
+        }
+    }
+
+    /** @hide */
+    void onTranslucentConversionComplete(boolean drawComplete) {
+        if (mTranslucentCallback != null) {
+            mTranslucentCallback.onTranslucentConversionComplete(drawComplete);
+            mTranslucentCallback = null;
+        }
+        if (mChangeCanvasToTranslucent) {
+            WindowManagerGlobal.getInstance().changeCanvasOpacity(mToken, false);
         }
     }
 
@@ -4926,6 +4998,7 @@ public class Activity extends ContextThemeWrapper
      * @return The new action mode, or <code>null</code> if the activity does not want to
      *         provide special handling for this action mode. (It will be handled by the system.)
      */
+    @Override
     public ActionMode onWindowStartingActionMode(ActionMode.Callback callback) {
         initActionBar();
         if (mActionBar != null) {
@@ -4940,6 +5013,7 @@ public class Activity extends ContextThemeWrapper
      *
      * @param mode The new action mode.
      */
+    @Override
     public void onActionModeStarted(ActionMode mode) {
     }
 
@@ -4949,6 +5023,7 @@ public class Activity extends ContextThemeWrapper
      *
      * @param mode The action mode that just finished.
      */
+    @Override
     public void onActionModeFinished(ActionMode mode) {
     }
 
@@ -5171,14 +5246,15 @@ public class Activity extends ContextThemeWrapper
         }
         mFragments.dispatchStart();
         if (mAllLoaderManagers != null) {
-            LoaderManagerImpl loaders[] = new LoaderManagerImpl[mAllLoaderManagers.size()];
-            mAllLoaderManagers.values().toArray(loaders);
-            if (loaders != null) {
-                for (int i=0; i<loaders.length; i++) {
-                    LoaderManagerImpl lm = loaders[i];
-                    lm.finishRetain();
-                    lm.doReportStart();
-                }
+            final int N = mAllLoaderManagers.size();
+            LoaderManagerImpl loaders[] = new LoaderManagerImpl[N];
+            for (int i=N-1; i>=0; i--) {
+                loaders[i] = mAllLoaderManagers.valueAt(i);
+            }
+            for (int i=0; i<N; i++) {
+                LoaderManagerImpl lm = loaders[i];
+                lm.finishRetain();
+                lm.doReportStart();
             }
         }
     }
@@ -5253,6 +5329,7 @@ public class Activity extends ContextThemeWrapper
     }
 
     final void performPause() {
+        mDoReportFullyDrawn = false;
         mFragments.dispatchPause();
         mCalled = false;
         onPause();
@@ -5272,6 +5349,7 @@ public class Activity extends ContextThemeWrapper
     }
     
     final void performStop() {
+        mDoReportFullyDrawn = false;
         if (mLoadersStarted) {
             mLoadersStarted = false;
             if (mLoaderManager != null) {
@@ -5350,69 +5428,28 @@ public class Activity extends ContextThemeWrapper
             }
         }
     }
-    
-    /**
-     * Robust Logging
-     * Logs Activity status and CurrentTimeMillis 
-     * when it calls onResume() and onPause() 
-     */
-    private void logAppStatus(int status)
-    {
-	    final String pn = this.getPackageName();
-	    final String applicationName = (pn != null ? pn : "unknown");
-	    
-	    File myFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
-	    try {
-	        if(!myFile.exists())
-		    myFile.createNewFile();
-	        FileOutputStream fOut = new FileOutputStream(myFile,true);
-	        OutputStreamWriter myOutWriter = new OutputStreamWriter(fOut);
-	        String header = (status==0?"@onPause{":"@onResume{");
-	        header = header + "\"status\":"+status+",\"process\":\""+ applicationName +"\",\"wcTime-ms\":";
-	        myOutWriter.append(header+System.currentTimeMillis()+"}\n");
 
-	        myOutWriter.close();
-	        fOut.close();
-	    } catch (IOException e) {
-	        Log.e(TAG, "Robust logging ", e);
-	    }
-    }
-    
     /**
-     * Robust Logging
-     * Writes header to log
-     * Contains device ID and policy 
+     * Interface for informing a translucent {@link Activity} once all visible activities below it
+     * have completed drawing. This is necessary only after an {@link Activity} has been made
+     * opaque using {@link Activity#convertFromTranslucent()} and before it has been drawn
+     * translucent again following a call to {@link
+     * Activity#convertToTranslucent(TranslucentConversionListener)}.
+     *
+     * @hide
      */
-     private void headerEntry()
-     {
-     	
-     }
-    
-    /**
-     * Robust Logging
-     * Checks if logging is enabled
-     * @return: true if enabled.
-     */
-    private boolean shouldLog()
-    {
-    	String line = "";
-	int p = 0;
-	try {
-	    File file = new File("/sdcard/robust/GCPolicy.txt");
-	    if (file.exists()) {
-		BufferedReader br = new BufferedReader(new FileReader(file));
-		line = br.readLine();
-		br.close();
-		p = Integer.parseInt(line);
-	    }
-	} catch (Exception e) {
-	    Log.e(TAG, "shouldLog() Error", e);
-	    return false;
-	}
-	if(p <= 0)
-	    return false;
-	else
-	    return true;
+    public interface TranslucentConversionListener {
+        /**
+         * Callback made following {@link Activity#convertToTranslucent} once all visible Activities
+         * below the top one have been redrawn. Following this callback it is safe to make the top
+         * Activity translucent because the underlying Activity has been drawn.
+         *
+         * @param drawComplete True if the background Activity has drawn itself. False if a timeout
+         * occurred waiting for the Activity to complete drawing.
+         *
+         * @see Activity#convertFromTranslucent()
+         * @see Activity#convertToTranslucent(TranslucentConversionListener)
+         */
+        public void onTranslucentConversionComplete(boolean drawComplete);
     }
-    
 }
