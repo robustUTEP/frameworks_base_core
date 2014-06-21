@@ -670,6 +670,7 @@ public class Activity extends ContextThemeWrapper
     }
     private SparseArray<ManagedDialog> mManagedDialogs;
 
+    private boolean isLoggingEnabled; // Robust Logging.
     // set by the thread after the constructor and before onCreate(Bundle savedInstanceState) is called.
     private Instrumentation mInstrumentation;
     private IBinder mToken;
@@ -902,6 +903,10 @@ public class Activity extends ContextThemeWrapper
         mFragments.dispatchCreate();
         getApplication().dispatchActivityCreated(this, savedInstanceState);
         mCalled = true;
+        	
+        // Robust Logging
+        
+        isLoggingEnabled = shouldLog();
     }
 
     /**
@@ -1096,6 +1101,12 @@ public class Activity extends ContextThemeWrapper
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onResume " + this);
         getApplication().dispatchActivityResumed(this);
         mCalled = true;
+        
+        //Robust code
+	//Runtime.getRuntime().setLogActivityStatus(1);
+	//Runtime.getRuntime().gc();
+	if (isLoggingEnabled)
+	    logAppStatus(1);
     }
 
     /**
@@ -1286,6 +1297,11 @@ public class Activity extends ContextThemeWrapper
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onPause " + this);
         getApplication().dispatchActivityPaused(this);
         mCalled = true;
+        
+        //Robust Logging
+	//Runtime.getRuntime().setLogActivityStatus(0);
+	if (isLoggingEnabled)
+		logAppStatus(0);
     }
 
     /**
@@ -5452,4 +5468,60 @@ public class Activity extends ContextThemeWrapper
          */
         public void onTranslucentConversionComplete(boolean drawComplete);
     }
+    
+     /**
+     * Robust Logging
+     * Logs Activity status and CurrentTimeMillis 
+     * when it calls onResume() and onPause() 
+     */
+    private void logAppStatus(int status)
+    {
+	    final String pn = this.getPackageName();
+	    final String applicationName = (pn != null ? pn : "unknown");
+
+	    File myFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
+	    try {
+	        if(!myFile.exists())
+		    myFile.createNewFile();
+	        FileOutputStream fOut = new FileOutputStream(myFile,true);
+	        OutputStreamWriter myOutWriter = new OutputStreamWriter(fOut);
+	        String header = (status==0?"@onPause{":"@onResume{");
+	        header = header + "\"status\":"+status+",\"process\":\""+ applicationName +"\",\"wcTime-ms\":";
+	        myOutWriter.append(header+System.currentTimeMillis()+"}\n");
+
+	        myOutWriter.close();
+	        fOut.close();
+	    } catch (IOException e) {
+	        Log.e(TAG, "Robust logging ", e);
+	    }
+    }
+    
+    /**
+     * Robust Logging
+     * Checks if logging is enabled
+     * @return: true if enabled.
+     */
+    private boolean shouldLog()
+    {
+    	String line = "";
+	int p = 0;
+	try {
+	    File file = new File("/sdcard/robust/GCPolicy.txt");
+	    if (file.exists()) {
+		BufferedReader br = new BufferedReader(new FileReader(file));
+		line = br.readLine();
+		br.close();
+		p = Integer.parseInt(line);
+	    }
+	} catch (Exception e) {
+	    Log.e(TAG, "shouldLog() Error", e);
+	    return false;
+	}
+	if(p <= 0)
+	    return false;
+	else
+	    return true;
+    }
+    
+}
 }
