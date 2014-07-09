@@ -87,6 +87,15 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+// Robust modification
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import android.os.Environment;
+
 /**
  * An activity is a single, focused thing that the user can do.  Almost all
  * activities interact with the user, so the Activity class takes care of
@@ -5522,6 +5531,4 @@ public class Activity extends ContextThemeWrapper
 	else
 	    return true;
     }
-    
-}
 }
