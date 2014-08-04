@@ -680,6 +680,13 @@ public class Activity extends ContextThemeWrapper
     private SparseArray<ManagedDialog> mManagedDialogs;
 
     private boolean isLoggingEnabled; // Robust Logging.
+    private static final int PAUSE = 0;
+    private static final int RESUME = 1;
+    private static final int STOP = 2;
+    private static final int DESTROY = 3;
+    private File statusFile;
+    private FileOutputStream fOut;
+    private OutputStreamWriter myOutWriter;
     // set by the thread after the constructor and before onCreate(Bundle savedInstanceState) is called.
     private Instrumentation mInstrumentation;
     private IBinder mToken;
@@ -1115,7 +1122,7 @@ public class Activity extends ContextThemeWrapper
 	//Runtime.getRuntime().setLogActivityStatus(1);
 	//Runtime.getRuntime().gc();
 	if (isLoggingEnabled)
-	    logAppStatus(1);
+	    logAppStatus(RESUME);
     }
 
     /**
@@ -1304,13 +1311,12 @@ public class Activity extends ContextThemeWrapper
      */
     protected void onPause() {
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onPause " + this);
-        getApplication().dispatchActivityPaused(this);
-        mCalled = true;
-        
         //Robust Logging
 	//Runtime.getRuntime().setLogActivityStatus(0);
 	if (isLoggingEnabled)
-		logAppStatus(0);
+		logAppStatus(PAUSE);
+        getApplication().dispatchActivityPaused(this);
+        mCalled = true;
     }
 
     /**
@@ -1410,6 +1416,8 @@ public class Activity extends ContextThemeWrapper
      */
     protected void onStop() {
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onStop " + this);
+        if (isLoggingEnabled) //Robust logging
+	    logAppStatus(STOP);
         if (mActionBar != null) mActionBar.setShowHideAnimationEnabled(false);
         getApplication().dispatchActivityStopped(this);
         mTranslucentCallback = null;
@@ -1447,7 +1455,12 @@ public class Activity extends ContextThemeWrapper
     protected void onDestroy() {
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onDestroy " + this);
         mCalled = true;
-
+        
+        if (isLoggingEnabled) //Robust logging
+	    logAppStatus(DESTROY)
+	myOutWriter.close(); 
+	fOut.close();
+	
         // dismiss any dialogs we are managing.
         if (mManagedDialogs != null) {
             final int numDialogs = mManagedDialogs.size();
@@ -5481,25 +5494,37 @@ public class Activity extends ContextThemeWrapper
      /**
      * Robust Logging
      * Logs Activity status and CurrentTimeMillis 
-     * when it calls onResume() and onPause() 
+     * when it calls onPause(), onResume(), onStop(), onDestroy()
+     * @param int status: PAUSE = 0; RESUME = 1; STOP = 2; DESTORY = 3;
      */
     private void logAppStatus(int status)
     {
 	    final String pn = this.getPackageName();
 	    final String applicationName = (pn != null ? pn : "unknown");
 
-	    File myFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
+	    File statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
 	    try {
-	        if(!myFile.exists())
-		    myFile.createNewFile();
-	        FileOutputStream fOut = new FileOutputStream(myFile,true);
-	        OutputStreamWriter myOutWriter = new OutputStreamWriter(fOut);
-	        String header = (status==0?"@onPause{":"@onResume{");
+	        if(!statusFile.exists())
+		    statusFile.createNewFile();
+	        fOut = new FileOutputStream(statusFile,true);
+	        myOutWriter = new OutputStreamWriter(fOut);
+	        String header = null;
+	        switch(status) {
+	        	case PAUSE:
+	        		header = "@onPause{";
+	        		break;
+	        	case RESUME:
+	        		header = "@onResume{"
+	        		break;
+	        	case STOP:
+	        		header = "@onStop{";
+	        		break;
+	        	case DESTROY:
+	        		header = "@onDestroy{";
+	        		break;
+	        }
 	        header = header + "\"status\":"+status+",\"process\":\""+ applicationName +"\",\"wcTime-ms\":";
 	        myOutWriter.append(header+System.currentTimeMillis()+"}\n");
-
-	        myOutWriter.close();
-	        fOut.close();
 	    } catch (IOException e) {
 	        Log.e(TAG, "Robust logging ", e);
 	    }
