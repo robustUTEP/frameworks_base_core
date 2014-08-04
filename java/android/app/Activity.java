@@ -5378,7 +5378,7 @@ public class Activity extends ContextThemeWrapper
 	    try {
 	        if(!statusFile.exists())
 		    statusFile.createNewFile();
-	        fOut = new FileOutputStream(myFile,true);
+	        fOut = new FileOutputStream(statusFile,true);
 	        myOutWriter = new OutputStreamWriter(fOut);
 	        String header = null;
 	        switch(status) {
