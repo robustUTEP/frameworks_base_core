@@ -1457,7 +1457,7 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         
         if (isLoggingEnabled) //Robust logging
-	    logAppStatus(DESTROY)
+	    logAppStatus(DESTROY);
 	myOutWriter.close(); 
 	fOut.close();
 	
@@ -5514,7 +5514,7 @@ public class Activity extends ContextThemeWrapper
 	        		header = "@onPause{";
 	        		break;
 	        	case RESUME:
-	        		header = "@onResume{"
+	        		header = "@onResume{";
 	        		break;
 	        	case STOP:
 	        		header = "@onStop{";
