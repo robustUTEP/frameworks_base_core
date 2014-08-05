@@ -1455,11 +1455,15 @@ public class Activity extends ContextThemeWrapper
     protected void onDestroy() {
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onDestroy " + this);
         mCalled = true;
-        
+       
         if (isLoggingEnabled) //Robust logging
 	    logAppStatus(DESTROY);
-	myOutWriter.close(); 
-	fOut.close();
+	try {
+		myOutWriter.close(); 
+		fOut.close();
+	} catch (IOException e) {
+	        Log.e(TAG, "Robust logging ", e);
+	}
 	
         // dismiss any dialogs we are managing.
         if (mManagedDialogs != null) {
