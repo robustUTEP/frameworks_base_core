@@ -921,6 +921,13 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         	
         // Robust Logging
+        statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
+        try {
+        	fOut = new FileOutputStream(statusFile,true);
+	        myOutWriter = new OutputStreamWriter(fOut);
+    	} catch (IOException e) {
+	        Log.e(TAG, "Robust logging ", e);
+	}
         
         isLoggingEnabled = shouldLog();
     }
@@ -5506,12 +5513,9 @@ public class Activity extends ContextThemeWrapper
 	    final String pn = this.getPackageName();
 	    final String applicationName = (pn != null ? pn : "unknown");
 
-	    File statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
 	    try {
 	        if(!statusFile.exists())
 		    statusFile.createNewFile();
-	        fOut = new FileOutputStream(statusFile,true);
-	        myOutWriter = new OutputStreamWriter(fOut);
 	        String header = null;
 	        switch(status) {
 	        	case PAUSE:
@@ -5529,6 +5533,7 @@ public class Activity extends ContextThemeWrapper
 	        }
 	        header = header + "\"status\":"+status+",\"process\":\""+ applicationName +"\",\"wcTime-ms\":";
 	        myOutWriter.append(header+System.currentTimeMillis()+"}\n");
+	        myOutWriter.flush();
 	    } catch (IOException e) {
 	        Log.e(TAG, "Robust logging ", e);
 	    }
