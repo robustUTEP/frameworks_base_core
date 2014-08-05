@@ -921,6 +921,8 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         	
         // Robust Logging
+        final String pn = this.getPackageName();
+	final String applicationName = (pn != null ? pn : "unknown");
         statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
         try {
         	fOut = new FileOutputStream(statusFile,true);
@@ -5510,9 +5512,6 @@ public class Activity extends ContextThemeWrapper
      */
     private void logAppStatus(int status)
     {
-	    final String pn = this.getPackageName();
-	    final String applicationName = (pn != null ? pn : "unknown");
-
 	    try {
 	        if(!statusFile.exists())
 		    statusFile.createNewFile();
