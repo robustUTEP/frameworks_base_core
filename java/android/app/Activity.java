@@ -680,6 +680,7 @@ public class Activity extends ContextThemeWrapper
     private SparseArray<ManagedDialog> mManagedDialogs;
 
     private boolean isLoggingEnabled; // Robust Logging.
+    private static String applicationName;
     private static final int PAUSE = 0;
     private static final int RESUME = 1;
     private static final int STOP = 2;
@@ -922,7 +923,7 @@ public class Activity extends ContextThemeWrapper
         	
         // Robust Logging
         final String pn = this.getPackageName();
-	final String applicationName = (pn != null ? pn : "unknown");
+	applicationName = (pn != null ? pn : "unknown");
         statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
         try {
         	fOut = new FileOutputStream(statusFile,true);
