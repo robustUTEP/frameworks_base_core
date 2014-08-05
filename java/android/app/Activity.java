@@ -1449,8 +1449,12 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         if (isLoggingEnabled) //Robust logging
 	    logAppStatus(DESTROY);
-	myOutWriter.close(); 
-	fOut.close();
+	try {
+		myOutWriter.close(); 
+		fOut.close();
+	} catch (IOException e) {
+	        Log.e(TAG, "Robust logging ", e);
+	}
         // dismiss any dialogs we are managing.
         if (mManagedDialogs != null) {
             final int numDialogs = mManagedDialogs.size();
@@ -5386,7 +5390,7 @@ public class Activity extends ContextThemeWrapper
 	        		header = "@onPause{";
 	        		break;
 	        	case RESUME:
-	        		header = "@onResume{"
+	        		header = "@onResume{";
 	        		break;
 	        	case STOP:
 	        		header = "@onStop{";
