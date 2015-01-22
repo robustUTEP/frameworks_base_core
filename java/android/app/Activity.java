@@ -922,17 +922,19 @@ public class Activity extends ContextThemeWrapper
         mCalled = true;
         	
         // Robust Logging
-        final String pn = this.getPackageName();
-	applicationName = (pn != null ? pn : "unknown");
-        statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
-        try {
-        	fOut = new FileOutputStream(statusFile,true);
-	        myOutWriter = new OutputStreamWriter(fOut);
-    	} catch (IOException e) {
-	        Log.e(TAG, "Robust logging ", e);
-	}
-        
         isLoggingEnabled = shouldLog();
+        if(isLoggingEnabled) {
+            final String pn = this.getPackageName();
+            applicationName = (pn != null ? pn : "unknown");
+            statusFile = new File("/data/data/"+applicationName+"/"+applicationName+".status");
+            try {
+                fOut = new FileOutputStream(statusFile,true);
+                myOutWriter = new OutputStreamWriter(fOut);
+            } catch (Exception e) {
+                isLoggingEnabled = false;
+                Log.e(TAG, "Robust logging ", e);
+            }
+        }
     }
 
     /**
@@ -1322,9 +1324,9 @@ public class Activity extends ContextThemeWrapper
     protected void onPause() {
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onPause " + this);
         //Robust Logging
-	//Runtime.getRuntime().setLogActivityStatus(0);
-	if (isLoggingEnabled)
-		logAppStatus(PAUSE);
+        //Runtime.getRuntime().setLogActivityStatus(0);
+        if (isLoggingEnabled)
+            logAppStatus(PAUSE);
         getApplication().dispatchActivityPaused(this);
         mCalled = true;
     }
@@ -1427,7 +1429,7 @@ public class Activity extends ContextThemeWrapper
     protected void onStop() {
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onStop " + this);
         if (isLoggingEnabled) //Robust logging
-	    logAppStatus(STOP);
+            logAppStatus(STOP);
         if (mActionBar != null) mActionBar.setShowHideAnimationEnabled(false);
         getApplication().dispatchActivityStopped(this);
         mTranslucentCallback = null;
@@ -1466,14 +1468,15 @@ public class Activity extends ContextThemeWrapper
         if (DEBUG_LIFECYCLE) Slog.v(TAG, "onDestroy " + this);
         mCalled = true;
        
-        if (isLoggingEnabled) //Robust logging
-	    logAppStatus(DESTROY);
-	try {
-		myOutWriter.close(); 
-		fOut.close();
-	} catch (IOException e) {
-	        Log.e(TAG, "Robust logging ", e);
-	}
+        if (isLoggingEnabled) {//Robust logging
+            logAppStatus(DESTROY);
+            try {
+                myOutWriter.close();
+                fOut.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Robust logging ", e);
+            }
+        }
 	
         // dismiss any dialogs we are managing.
         if (mManagedDialogs != null) {
@@ -5534,7 +5537,7 @@ public class Activity extends ContextThemeWrapper
 	        header = header + "\"status\":"+status+",\"process\":\""+ applicationName +"\",\"wcTime-ms\":";
 	        myOutWriter.append(header+System.currentTimeMillis()+"}\n");
 	        myOutWriter.flush();
-	    } catch (IOException e) {
+	    } catch (Exception e) {
 	        Log.e(TAG, "Robust logging ", e);
 	    }
     }
@@ -5547,22 +5550,22 @@ public class Activity extends ContextThemeWrapper
     private boolean shouldLog()
     {
     	String line = "";
-	int p = 0;
-	try {
-	    File file = new File("/sdcard/robust/GCPolicy.txt");
-	    if (file.exists()) {
-		BufferedReader br = new BufferedReader(new FileReader(file));
-		line = br.readLine();
-		br.close();
-		p = Integer.parseInt(line);
-	    }
-	} catch (Exception e) {
-	    Log.e(TAG, "shouldLog() Error", e);
-	    return false;
-	}
-	if(p <= 0)
-	    return false;
-	else
-	    return true;
+        int p = 0;
+        try {
+            File file = new File("/sdcard/robust/GCPolicy.txt");
+            if (file.exists()) {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                line = br.readLine();
+                br.close();
+                p = Integer.parseInt(line);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "shouldLog() Error", e);
+            return false;
+        }
+        if(p <= 0)
+            return false;
+        else
+            return true;
     }
 }
